@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = 'eu-north-1' // Your AWS region
-        AWS_ACCOUNT_ID = '381491849010' // Your AWS account ID
+        AWS_DEFAULT_REGION = 'eu-east-1' // Your AWS region
+        AWS_ACCOUNT_ID = '640168410478' // Your AWS account ID
         ECR_REPO_NAME = 'tas2' // Your ECR repo name
         IMAGE_TAG = "${env.BUILD_ID}" // Unique tag for each build
         LATEST_TAG = 'latest' // Tag for the latest image
@@ -13,7 +13,7 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/Izaindevops/Task2_Muhammad_Ramzan.git', // Your GitHub repo link
+                    url: 'https://github.com/Izaindevops/expressjs-restful-apis-demo', // Your GitHub repo link
                     credentialsId: 'github-credentials-id'
             }
         }
