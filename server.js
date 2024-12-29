@@ -1,45 +1,49 @@
 var express = require('express'), // Call express
     app = express(), // Define our app using express
     port = process.env.PORT || 3000, // Set the port
-    dbUrl = process.env.MONGODB_URI || 'mongodb://localhost/tasksdb',
+    dbUrl = process.env.MONGODB_URI || 'mongodb://mongo-container:27017/tasksdb', // MongoDB container name or host alias
     mongoose = require('mongoose'), // Call mongoose to interact with a MongoDB(Database) instance
     Task = require('./api/models/tasksModel'), // Created model loading here
-    bodyParser = require('body-parser'); //Middleware to process incoming request body objects
-  
+    bodyParser = require('body-parser'); // Middleware to process incoming request body objects
+
 // Mongoose instance connection url connection
 mongoose.Promise = global.Promise;
-mongoose.connect(dbUrl); 
+mongoose.connect(dbUrl, { useNewUrlParser: true, useUnifiedTopology: true }) // Added new connection options
+    .then(() => console.log('MongoDB connected successfully'))
+    .catch(err => console.log('MongoDB connection error:', err));
 
 /* Configure app to use bodyParser()
    this will let us get the data from a POST */
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-//Importing route
-var routes = require('./api/routes/tasksRoutes'); 
+// Importing route
+var routes = require('./api/routes/tasksRoutes');
 
-//Register the route
-routes(app); 
+// Register the route
+routes(app);
 
 // Start the server
-app.listen(port);
-console.log('RESTful API demo server started on: ' + `http://localhost:${port}/`);
+app.listen(port, () => {
+    console.log('RESTful API demo server started on: ' + `http://localhost:${port}/`);
+});
 
 // Get an instance of the express Router
 var router = express.Router();
 
 // Health route to make sure everything is working (accessed at GET http://localhost:3000/health)
 app.use('/health', require('express-healthcheck')({
-  healthy: function () {
-      return { message: 'ExpressJS web service is up and running' };
-  }
+    healthy: function () {
+        return { message: 'ExpressJS web service is up and running' };
+    }
 }));
 
 // All of our routes will be prefixed with /api
 app.use('/api', router);
 
-// Returning response with 404 when incorrect url is requested 
+// Returning response with 404 when incorrect URL is requested
 app.use(function(req, res) {
-  res.status(404).send({ error: { errors: [ { domain: 'global', reason: 'notFound', message: 'Not Found', 
-                        description: 'Couldn\'t find the requested resource \'' + req.originalUrl + '\'' } ], code: 404, message: 'Not Found' } })
+    res.status(404).send({ error: { errors: [ { domain: 'global', reason: 'notFound', message: 'Not Found',
+                        description: 'Couldn\'t find the requested resource \'' + req.originalUrl + '\'' } ], code: 404, message: 'Not Found' } });
 });
+

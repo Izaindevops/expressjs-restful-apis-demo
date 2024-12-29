@@ -1,0 +1,67 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_DEFAULT_REGION = 'eu-north-1' // Your AWS region
+        AWS_ACCOUNT_ID = '381491849010' // Your AWS account ID
+        ECR_REPO_NAME = 'tas2' // Your ECR repo name
+        IMAGE_TAG = "${env.BUILD_ID}" // Unique tag for each build
+        LATEST_TAG = 'latest' // Tag for the latest image
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/Izaindevops/Task2_Muhammad_Ramzan.git', // Your GitHub repo link
+                    credentialsId: 'github-credentials-id'
+            }
+        }
+
+        stage('Build Backend Docker Image') {
+            steps {
+                script {
+                    dockerImage = docker.build("${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}-backend", "./backend_code") // Build backend image
+                }
+            }
+        }
+
+        stage('Build Frontend Docker Image') {
+            steps {
+                script {
+                    dockerImage = docker.build("${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}-frontend", "./frontend_code") // Build frontend image
+                }
+            }
+        }
+
+        stage('Push Docker Images to ECR') {
+            steps {
+                script {
+                    withAWS(credentials: 'aws-credentials-id', region: "${AWS_DEFAULT_REGION}") {
+                        // Login to AWS ECR
+                        sh "aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                        
+                        // Push Backend image
+                        sh "docker tag ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}-backend ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:latest-backend"
+                        sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}-backend"
+                        sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:latest-backend"
+                        
+                        // Push Frontend image
+                        sh "docker tag ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}-frontend ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:latest-frontend"
+                        sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}-frontend"
+                        sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:latest-frontend"
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Images successfully pushed to ECR!'
+        }
+        failure {
+            echo 'Failed to push the images to ECR.'
+        }
+    }
+}
