@@ -2,54 +2,57 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = 'eu-east-1' // Your AWS region
-        AWS_ACCOUNT_ID = '640168410478' // Your AWS account ID
-        ECR_REPO_NAME = 'tas2' // Your ECR repo name
-        IMAGE_TAG = "${env.BUILD_ID}" // Unique tag for each build
-        LATEST_TAG = 'latest' // Tag for the latest image
+        AWS_DEFAULT_REGION = 'us-east-1'
+        AWS_ACCOUNT_ID = '640168410478'
+        ECR_REPO_NAME = 'project_online'
+        IMAGE_TAG = "${env.BUILD_ID}"
+        LATEST_TAG = 'latest'
+        EC2_INSTANCE_IP = '54.234.57.107'
+        EC2_USER = 'ubuntu'
+        EC2_KEY_PATH = '/home/ubuntu/api.pem'
+        EC2_PROJECT_DIR = '/home/ubuntu/expressjs-restful-apis-demo'
     }
 
     stages {
         stage('Checkout Code') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/Izaindevops/expressjs-restful-apis-demo', // Your GitHub repo link
+                    url: 'https://github.com/Izaindevops/expressjs-restful-apis-demo',
                     credentialsId: 'github-credentials-id'
             }
         }
 
-        stage('Build Backend Docker Image') {
+        stage('Build Docker Image') {
             steps {
                 script {
-                    dockerImage = docker.build("${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}-backend", "./backend_code") // Build backend image
+                    dockerImage = docker.build("${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}")
                 }
             }
         }
 
-        stage('Build Frontend Docker Image') {
-            steps {
-                script {
-                    dockerImage = docker.build("${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}-frontend", "./frontend_code") // Build frontend image
-                }
-            }
-        }
-
-        stage('Push Docker Images to ECR') {
+        stage('Push Docker Image to ECR') {
             steps {
                 script {
                     withAWS(credentials: 'aws-credentials-id', region: "${AWS_DEFAULT_REGION}") {
-                        // Login to AWS ECR
                         sh "aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
-                        
-                        // Push Backend image
-                        sh "docker tag ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}-backend ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:latest-backend"
-                        sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}-backend"
-                        sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:latest-backend"
-                        
-                        // Push Frontend image
-                        sh "docker tag ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}-frontend ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:latest-frontend"
-                        sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}-frontend"
-                        sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:latest-frontend"
+                        sh "docker tag ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${LATEST_TAG}"
+                        sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}"
+                        sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_NAME}:${LATEST_TAG}"
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to EC2') {
+            steps {
+                script {
+                    sshagent(credentials: ['ssh_agent']) {
+                        sh """
+                        ssh -i ${EC2_KEY_PATH} -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_INSTANCE_IP} "
+                        cd ${EC2_PROJECT_DIR} &&
+                        docker-compose pull &&
+                        docker-compose up -d"
+                        """
                     }
                 }
             }
@@ -58,10 +61,10 @@ pipeline {
 
     post {
         success {
-            echo 'Images successfully pushed to ECR!'
+            echo 'Pipeline executed successfully!'
         }
         failure {
-            echo 'Failed to push the images to ECR.'
+            echo 'Pipeline failed!'
         }
     }
 }
